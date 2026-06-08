@@ -151,3 +151,54 @@ function parseCommand(transcript, ctx) {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { cellToExport, normalize, roNumber, parseCommand, FACE_WORDS, COL_WORDS };
 }
+
+if (typeof window !== 'undefined') {
+    window.getPlayerNames = function () {
+        const out = [];
+        const count = (typeof playerMode !== 'undefined' ? playerMode : 1);
+        for (let i = 1; i <= count; i++) {
+            const el = document.getElementById(`player${i}-name`);
+            out.push(el ? el.value : `Jucator ${i}`);
+        }
+        return out;
+    };
+
+    window.applyParsed = function (r) {
+        const pid = 'p' + r.playerIndex;
+        const sel = document.getElementById(`${pid}_s_${r.rowIndex}_${r.colIndex}`);
+        if (!sel) { showToast('⚠️ Celulă inexistentă'); return; }
+        const prev = sel.value;
+        sel.value = String(r.value);
+        onSelect(sel, pid, r.rowIndex, r.colIndex);
+        showToast(`🎤 ${r.label} = ${r.value} · apasă pt. Anulează`, () => {
+            sel.value = prev;
+            onSelect(sel, pid, r.rowIndex, r.colIndex);
+        });
+    };
+
+    window.startVoice = function () {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { showToast('⚠️ Browserul nu suportă recunoaștere vocală'); return; }
+        const rec = new SR();
+        rec.lang = 'ro-RO';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        const btn = document.getElementById('voiceBtn');
+        if (btn) btn.textContent = '🔴 …';
+        rec.onresult = function (ev) {
+            const text = ev.results[0][0].transcript;
+            const r = parseCommand(text, { rowDefs: ROW_DEFS, playerNames: window.getPlayerNames() });
+            if (!r.ok) { showToast(`🤷 N-am înțeles („${text}")`); return; }
+            if (r.confident) {
+                window.applyParsed(r);
+            } else {
+                showModal('Confirmi comanda?',
+                    `Am înțeles: „${text}" → Jucător ${r.playerIndex}, ${r.label} = ${r.value}`,
+                    () => window.applyParsed(r));
+            }
+        };
+        rec.onerror = function () { showToast('⚠️ Eroare microfon'); };
+        rec.onend = function () { if (btn) btn.textContent = '🎤 Voce'; };
+        rec.start();
+    };
+}

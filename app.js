@@ -650,11 +650,14 @@ function switchPanel(name) {
     if (name === 'history') renderHistory();
 }
 
-function showToast(msg) {
+function showToast(msg, onUndo) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
+    t.onclick = onUndo ? () => { onUndo(); t.classList.remove('show'); } : null;
+    t.style.cursor = onUndo ? 'pointer' : 'default';
+    clearTimeout(window._toastT);
+    window._toastT = setTimeout(() => t.classList.remove('show'), onUndo ? 5000 : 2500);
 }
 
 function showModal(title, text, onConfirm) {
