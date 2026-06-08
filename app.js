@@ -792,28 +792,9 @@ function closeChart() {
 
 // ===== PWA REGISTRATION =====
 function registerPWA() {
-    // Create inline manifest as blob
-    const manifest = {
-        name: 'Yams Scoreboard',
-        short_name: 'Yams',
-        description: 'Tabel de scor digital pentru jocul Yams',
-        start_url: '.',
-        display: 'standalone',
-        background_color: '#1a1a2e',
-        theme_color: '#e94560',
-        icons: [{
-            src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e94560'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3Ccircle cx='48' cy='16' r='5' fill='white'/%3E%3Ccircle cx='32' cy='32' r='5' fill='white'/%3E%3Ccircle cx='16' cy='48' r='5' fill='white'/%3E%3Ccircle cx='48' cy='48' r='5' fill='white'/%3E%3C/svg%3E",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any maskable"
-        }]
-    };
-    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = url;
-    document.head.appendChild(link);
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js').catch(e => console.warn('SW fail', e));
+    }
 }
 registerPWA();
 
