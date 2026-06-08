@@ -42,11 +42,6 @@ function roNumber(text) {
 
 const COL_WORDS = { jos:0, liber:1, sus:2, servit:3 };
 const FACE_WORDS = { unari:1, doiari:2, treiari:3, patrari:4, cinciari:5, sasari:6 };
-const VOICE_ROWS = {
-    unari:0, doiari:1, treiari:2, patrari:3, cinciari:4, sasari:5,
-    mic:7, mare:8, pare:10, impare:11,
-    full:15, careu:18, yams:19,
-};
 const CUT_WORDS = ['taie','tai','taiat','taiem'];
 
 function findCol(words) {
@@ -154,5 +149,5 @@ function parseCommand(transcript, ctx) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { cellToExport, normalize, roNumber, parseCommand, FACE_WORDS, VOICE_ROWS, COL_WORDS };
+    module.exports = { cellToExport, normalize, roNumber, parseCommand, FACE_WORDS, COL_WORDS };
 }
