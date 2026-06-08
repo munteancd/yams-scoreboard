@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎲 Yams Scoreboard</title>
+    <!-- Favicon - inline SVG dice -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e94560'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3Ccircle cx='48' cy='16' r='5' fill='white'/%3E%3Ccircle cx='32' cy='32' r='5' fill='white'/%3E%3Ccircle cx='16' cy='48' r='5' fill='white'/%3E%3Ccircle cx='48' cy='48' r='5' fill='white'/%3E%3C/svg%3E">
+    <!-- PWA Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Yams">
+    <meta name="theme-color" content="#1a1a2e">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- CONFETTI CONTAINER -->
+<div class="confetti-container" id="confettiContainer"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- FULLSCREEN BUTTON -->
+<button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+
+<!-- GAME OVER OVERLAY -->
+<div class="gameover-overlay" id="gameoverOverlay">
+    <div class="gameover-card">
+        <div class="gameover-trophy" id="gameoverTrophy">🏆</div>
+        <div class="gameover-title" id="gameoverTitle">Joc Terminat!</div>
+        <div class="gameover-subtitle" id="gameoverSubtitle"></div>
+        <div class="gameover-scores" id="gameoverScores"></div>
+        <div class="gameover-diff" id="gameoverDiff"></div>
+        <div class="gameover-actions">
+            <button class="btn btn-primary" onclick="closeGameover(); confirmReset();">🔄 Joc Nou</button>
+            <button class="btn btn-secondary" onclick="closeGameover()">✖ Închide</button>
+        </div>
+    </div>
+</div>
+
+<!-- CHART OVERLAY -->
+<div class="chart-overlay" id="chartOverlay">
+    <div class="chart-card">
+        <div class="chart-header">
+            <h2>📈 Evoluție Scoruri</h2>
+            <button class="chart-close" onclick="closeChart()">✕</button>
+        </div>
+        <div id="chartContent"></div>
+    </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <h2 id="modalTitle">Confirmare</h2>
+        <p id="modalText">Ești sigur?</p>
+        <div class="modal-buttons">
+            <button class="btn btn-secondary" onclick="closeModal()">Anulează</button>
+            <button class="btn btn-danger" id="modalConfirmBtn" onclick="closeModal()">Da</button>
+        </div>
+    </div>
+</div>
+
+<!-- HEADER -->
+<div class="app-header">
+    <h1><span class="dice-icon">🎲</span> YAMS <span class="dice-icon">🎲</span></h1>
+</div>
+
+<!-- NAV -->
+<div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchPanel('game')">🎮 Joc</button>
+    <button class="nav-tab" onclick="switchPanel('history')">📊 Istoric & Statistici</button>
+    <button class="nav-tab" onclick="switchPanel('settings')">⚙️ Setări</button>
+</div>
+
+<!-- GAME PANEL -->
+<div class="panel active" id="panel-game">
+    <!-- DICE ZONE -->
+    <div class="dice-zone collapsed" id="diceZone">
+        <div class="dice-toggle-bar" onclick="toggleDice()">
+            <h3>🎲 Zaruri</h3>
+            <span class="toggle-arrow">▼</span>
+        </div>
+        <div class="dice-body">
+            <div class="dice-options">
+                <label class="dice-opt-toggle" title="Zaruri 3D">
+                    <input type="checkbox" id="dice3dToggle" onchange="toggle3dDice()">
+                    <span class="toggle-track"></span>
+                    <span>3D</span>
+                </label>
+                <label class="dice-opt-toggle" title="Sunete">
+                    <input type="checkbox" id="diceSoundToggle" onchange="toggleSound()" checked>
+                    <span class="toggle-track"></span>
+                    <span>🔊 Sunet</span>
+                </label>
+            </div>
+            <div class="dice-row" id="diceRow">
+                <div class="die-wrapper" id="die-0" onclick="toggleLock(0)"><svg class="die-svg" viewBox="0 0 56 56"><rect class="die-bg" width="56" height="56" rx="8"/></svg></div>
+                <div class="die-wrapper" id="die-1" onclick="toggleLock(1)"><svg class="die-svg" viewBox="0 0 56 56"><rect class="die-bg" width="56" height="56" rx="8"/></svg></div>
+                <div class="die-wrapper" id="die-2" onclick="toggleLock(2)"><svg class="die-svg" viewBox="0 0 56 56"><rect class="die-bg" width="56" height="56" rx="8"/></svg></div>
+                <div class="die-wrapper" id="die-3" onclick="toggleLock(3)"><svg class="die-svg" viewBox="0 0 56 56"><rect class="die-bg" width="56" height="56" rx="8"/></svg></div>
+                <div class="die-wrapper" id="die-4" onclick="toggleLock(4)"><svg class="die-svg" viewBox="0 0 56 56"><rect class="die-bg" width="56" height="56" rx="8"/></svg></div>
+            </div>
+            <div class="dice-controls">
+                <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 Aruncă</button>
+                <div class="roll-info">
+                    <span>Aruncări:</span>
+                    <div class="roll-counter">
+                        <div class="roll-dot" id="rollDot0"></div>
+                        <div class="roll-dot" id="rollDot1"></div>
+                        <div class="roll-dot" id="rollDot2"></div>
+                    </div>
+                </div>
+                <button class="dice-new-turn-btn" onclick="newDiceTurn()">↻ Tură nouă</button>
+            </div>
+            <div class="dice-sum-display" id="diceSumDisplay"></div>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <!-- Controls bar (horizontal, above tables) -->
+        <div class="controls-bar">
+            <div class="ctrl-card">
+                <h3>Jucători</h3>
+                <div class="mode-toggle" id="modeToggle">
+                    <button class="active" onclick="setPlayerMode(1)">1</button>
+                    <button onclick="setPlayerMode(2)">2</button>
+                    <button onclick="setPlayerMode(3)">3</button>
+                    <button onclick="setPlayerMode(4)">4</button>
+                </div>
+            </div>
+            <div class="ctrl-card">
+                <h3>Celule goale</h3>
+                <div class="empty-badges" id="emptyBadges">
+                    <span class="empty-badge" id="p1-empty">P1: 0</span>
+                </div>
+            </div>
+            <div class="ctrl-card">
+                <h3>Acțiuni</h3>
+                <button class="btn btn-success" onclick="finishGame()">✅ Termină</button>
+                <button class="btn btn-danger" onclick="confirmReset()">🔄 Reset</button>
+            </div>
+            <div class="ctrl-card">
+                <h3>Fișier</h3>
+                <input class="ctrl-input" type="text" id="fileName" placeholder="Nume fișier...">
+                <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                    <button class="btn btn-secondary" style="flex:1;min-width:0;font-size:0.8em;padding:6px;" onclick="saveToXlsx()">💾 XLSX</button>
+                    <button class="btn btn-secondary" style="flex:1;min-width:0;font-size:0.8em;padding:6px;" onclick="loadFromXlsx()">📂 XLSX</button>
+                    <button class="btn btn-secondary" style="flex:1;min-width:0;font-size:0.8em;padding:6px;" onclick="saveToLocal()">💿 Local</button>
+                    <button class="btn btn-secondary" style="flex:1;min-width:0;font-size:0.8em;padding:6px;" onclick="loadFromLocal()">📥 Local</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player tables grid -->
+        <div class="players-grid" id="playersGrid"></div>
+    </div>
+</div>
+
+<!-- HISTORY PANEL -->
+<div class="panel" id="panel-history">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h2 style="font-size:1.2em; color:var(--text2);">Istoric Jocuri</h2>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" style="width:auto; padding:6px 14px; font-size:0.8em;" onclick="openChart()">📈 Grafic</button>
+            <button class="btn btn-danger" style="width:auto; padding:6px 14px; font-size:0.8em;" onclick="confirmClearHistory()">🗑️ Șterge Istoricul</button>
+        </div>
+    </div>
+    <div id="historyContent"></div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="panel" id="panel-settings">
+    <div class="settings-grid">
+        <div class="setting-card">
+            <h3>Tema</h3>
+            <div class="theme-grid" id="themeGrid"></div>
+        </div>
+        <div class="setting-card">
+            <h3>Despre</h3>
+            <p style="color:var(--text2); font-size:0.9em; line-height:1.6;">
+                🎲 <strong>Yams Scoreboard</strong><br>
+                Versiune 3.0<br><br>
+                Tabel de scor digital pentru jocul Yams (Yahtzee).<br>
+                Suport 1-4 jucători, zaruri 2D/3D cu sunete, salvare locală, istoric, statistici și grafice.<br><br>
+                Creat cu ❤️ pentru serile de jocuri în familie.
+            </p>
+        </div>
+    </div>
+</div>
+
+<link rel="manifest" href="manifest.webmanifest">
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="voice.js"></script>
+</body>
+</html>
