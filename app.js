@@ -428,7 +428,8 @@ function saveToXlsx() {
             if (row.type === 'computed') {
                 rowData.push(parseInt(document.getElementById(`p1_cv_${ri}_${ci}`)?.textContent) || 0);
             } else {
-                rowData.push(getVal('p1', ri, ci));
+                const el = document.getElementById(`p1_s_${ri}_${ci}`);
+                rowData.push(cellToExport(el ? el.value : ''));
             }
         }
         data.push(rowData);
@@ -444,7 +445,8 @@ function saveToXlsx() {
                 if (row.type === 'computed') {
                     rowData.push(parseInt(document.getElementById(`p2_cv_${ri}_${ci}`)?.textContent) || 0);
                 } else {
-                    rowData.push(getVal('p2', ri, ci));
+                    const el = document.getElementById(`p2_s_${ri}_${ci}`);
+                    rowData.push(cellToExport(el ? el.value : ''));
                 }
             }
             data.push(rowData);
