@@ -421,37 +421,24 @@ function loadFromLocal() {
 
 // ===== SAVE / LOAD XLSX =====
 function saveToXlsx() {
-    const data = [['', ...COLS]];
-    ROW_DEFS.forEach((row, ri) => {
-        const rowData = [row.label];
-        for (let ci = 0; ci < NUM_COLS; ci++) {
-            if (row.type === 'computed') {
-                rowData.push(parseInt(document.getElementById(`p1_cv_${ri}_${ci}`)?.textContent) || 0);
-            } else {
-                const el = document.getElementById(`p1_s_${ri}_${ci}`);
-                rowData.push(cellToExport(el ? el.value : ''));
-            }
-        }
-        data.push(rowData);
-    });
-    data.push(['TO', parseInt(document.getElementById('p1_to').textContent) || 0]);
-
-    if (playerMode === 2) {
-        data.push([]);
+    const data = [];
+    for (let i = 1; i <= playerMode; i++) {
+        const pid = 'p' + i;
+        if (i > 1) data.push([]); // rând gol separator între blocuri
         data.push(['', ...COLS]);
         ROW_DEFS.forEach((row, ri) => {
             const rowData = [row.label];
             for (let ci = 0; ci < NUM_COLS; ci++) {
                 if (row.type === 'computed') {
-                    rowData.push(parseInt(document.getElementById(`p2_cv_${ri}_${ci}`)?.textContent) || 0);
+                    rowData.push(parseInt(document.getElementById(`${pid}_cv_${ri}_${ci}`)?.textContent) || 0);
                 } else {
-                    const el = document.getElementById(`p2_s_${ri}_${ci}`);
+                    const el = document.getElementById(`${pid}_s_${ri}_${ci}`);
                     rowData.push(cellToExport(el ? el.value : ''));
                 }
             }
             data.push(rowData);
         });
-        data.push(['TO', parseInt(document.getElementById('p2_to').textContent) || 0]);
+        data.push(['TO', parseInt(document.getElementById(`${pid}_to`).textContent) || 0]);
     }
 
     const wb = XLSX.utils.book_new();
@@ -476,8 +463,23 @@ function loadFromXlsx() {
             const wb = XLSX.read(data, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
-            populateFromXlsx('p1', json, 1);
-            updateAll('p1');
+
+            // Fiecare bloc jucător = header + ROW_DEFS + rând TO + rând gol separator
+            const BLOCK = 1 + ROW_DEFS.length + 2;
+            const startRows = [];
+            for (let i = 0; i < 4; i++) {
+                const header = json[i * BLOCK];
+                if (!header || header[1] !== COLS[0]) break; // nu mai e niciun bloc
+                startRows.push(i * BLOCK + 1); // prima linie de date a blocului
+            }
+            if (startRows.length === 0) { showToast('⚠️ Fișier invalid!'); return; }
+
+            setPlayerMode(startRows.length);
+            startRows.forEach((startRow, i) => {
+                const pid = 'p' + (i + 1);
+                populateFromXlsx(pid, json, startRow);
+                updateAll(pid);
+            });
             showToast('📂 Fișier încărcat!');
         };
         reader.readAsArrayBuffer(file);
