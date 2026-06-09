@@ -184,6 +184,19 @@
             <div class="theme-grid" id="themeGrid"></div>
         </div>
         <div class="setting-card">
+            <h3>🎤 Comandă vocală AI</h3>
+            <p style="color:var(--text2); font-size:0.85em; line-height:1.5; margin-bottom:8px;">
+                Cheie OpenRouter (gpt-4o-mini) pentru a înțelege comenzile vocale chiar dacă sunt stâlcite.
+                Se salvează doar pe acest dispozitiv (localStorage), nu pleacă nicăieri altundeva.
+            </p>
+            <input class="ctrl-input" type="password" id="aiKey" placeholder="sk-or-v1-..."
+                   style="width:100%; margin-bottom:8px;"
+                   onchange="saveAiKey(this.value)">
+            <p style="color:var(--text2); font-size:0.78em;">
+                Fără cheie, comanda vocală merge doar pe reguli (mai puțin tolerantă).
+            </p>
+        </div>
+        <div class="setting-card">
             <h3>Despre</h3>
             <p style="color:var(--text2); font-size:0.9em; line-height:1.6;">
                 🎲 <strong>Yams Scoreboard</strong><br>

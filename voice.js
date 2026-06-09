@@ -182,8 +182,67 @@ function parseCommand(transcript, ctx) {
              label: `${def.label} ${['jos','liber','sus','servit'][colIndex]}`, confident };
 }
 
+// ===== Fallback AI (OpenRouter) — normalizeaza transcriptul stalcit la formularea canonica =====
+const AI_MODEL = 'openai/gpt-4o-mini';
+const AI_ROWS = 'unari, doiari, treiari, patrari, cinciari, sasari, mic, mare, pare, impare, o pereche, 2 perechi, 3 bucati, full, chinta mica, chinta mare, careu, yams';
+
+function buildAiBody(transcript, playerNames) {
+    const names = (playerNames && playerNames.length) ? playerNames.join(', ') : '(un singur jucator)';
+    const system = [
+        'Esti un normalizator de comenzi vocale pentru un tabel de Yams (Yahtzee) in romana.',
+        'Primesti un transcript posibil gresit recunoscut de STT si il rescrii in formularea canonica EXACTA.',
+        'Randuri (categorii) valide: ' + AI_ROWS + '.',
+        'Coloane valide: jos, liber, sus, servit.',
+        'Jucatori: ' + names + '.',
+        'Reguli de formulare canonica:',
+        '- Sectiunea de sus: "<cantitate> <categorie> <coloana>", ex. "trei doiari in jos".',
+        '- yams / careu / 3 bucati: "<categorie> [servit] de <fata>", unde <fata> e unul din unari..sasari, ex. "careu de cinciari in sus", "yams servit cinciari".',
+        '- full: "full de <X> cu <Y> <coloana>" (X=tripletul, Y=perechea) sau "full <numar> <coloana>".',
+        '- chinte: "chinta mica <coloana>" / "chinta mare <coloana>".',
+        '- taiere (zero): "taie <categorie> <coloana>".',
+        '- Daca recunosti un nume de jucator in transcript, pune-l la inceput.',
+        'Raspunde DOAR cu JSON: {"command": "<comanda canonica>"}. Daca nu poti deduce o comanda valida, {"command": ""}.'
+    ].join('\n');
+    return {
+        model: AI_MODEL,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: transcript }
+        ]
+    };
+}
+
+function extractAiCommand(json) {
+    try {
+        const content = json.choices[0].message.content;
+        const obj = typeof content === 'string' ? JSON.parse(content) : content;
+        return (obj && typeof obj.command === 'string') ? obj.command.trim() : '';
+    } catch (e) { return ''; }
+}
+
+async function aiNormalize(transcript, opts) {
+    const f = (opts && opts.fetchImpl) || (typeof fetch !== 'undefined' ? fetch : null);
+    if (!f) throw new Error('fetch indisponibil');
+    const res = await f('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + opts.key,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://munteancd.github.io/yams-scoreboard/',
+            'X-Title': 'Yams Scoreboard'
+        },
+        body: JSON.stringify(buildAiBody(transcript, opts.playerNames))
+    });
+    if (!res.ok) throw new Error('AI HTTP ' + res.status);
+    const json = await res.json();
+    return extractAiCommand(json);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { cellToExport, normalize, roNumber, parseCommand, fixJargon, FACE_WORDS, COL_WORDS };
+    module.exports = { cellToExport, normalize, roNumber, parseCommand, fixJargon,
+        buildAiBody, extractAiCommand, aiNormalize, FACE_WORDS, COL_WORDS };
 }
 
 if (typeof window !== 'undefined') {
@@ -210,6 +269,32 @@ if (typeof window !== 'undefined') {
         });
     };
 
+    window.getAiKey = function () { return (localStorage.getItem('yams_or_key') || '').trim(); };
+    window.saveAiKey = function (v) { localStorage.setItem('yams_or_key', (v || '').trim()); showToast('🔑 Cheie AI salvată'); };
+
+    const REASONS = {
+        coloana_lipsa: 'n-am prins coloana (jos/liber/sus/servit)',
+        categorie_lipsa: 'n-am prins categoria',
+        valoare: 'n-am prins valoarea (ex. „trei doiari în jos")',
+        valoare_invalida: 'valoarea nu se potrivește pe acel rând'
+    };
+
+    function handleParsed(r, shown) {
+        if (!r.ok) {
+            const why = REASONS[r.reason] || r.reason;
+            const hint = window.getAiKey() ? '' : ' · pune cheia AI în Setări pt. recunoaștere mai bună';
+            showToast(`🤷 „${shown}" — ${why}${hint}`);
+            return;
+        }
+        if (r.confident) {
+            window.applyParsed(r);
+        } else {
+            showModal('Confirmi comanda?',
+                `Am înțeles: „${shown}" → Jucător ${r.playerIndex}, ${r.label} = ${r.value}`,
+                () => window.applyParsed(r));
+        }
+    }
+
     window.startVoice = function () {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) { showToast('⚠️ Browserul nu suportă recunoaștere vocală'); return; }
@@ -218,31 +303,35 @@ if (typeof window !== 'undefined') {
         rec.interimResults = false;
         rec.maxAlternatives = 1;
         const btn = document.getElementById('voiceBtn');
-        if (btn) btn.textContent = '🔴 …';
-        rec.onresult = function (ev) {
+        const setBtn = (txt) => { if (btn) btn.textContent = txt; };
+        setBtn('🔴 …');
+        rec.onresult = async function (ev) {
             const text = ev.results[0][0].transcript;
-            const r = parseCommand(text, { rowDefs: ROW_DEFS, playerNames: window.getPlayerNames() });
-            console.log('[voce] ai zis:', JSON.stringify(text), '→', JSON.stringify(r));
-            if (!r.ok) {
-                const why = {
-                    coloana_lipsa: 'n-am prins coloana (jos/liber/sus/servit)',
-                    categorie_lipsa: 'n-am prins categoria',
-                    valoare: 'n-am prins valoarea',
-                    valoare_invalida: 'valoarea nu se potrivește pe acel rând'
-                }[r.reason] || r.reason;
-                showToast(`🤷 „${text}" — ${why}`);
-                return;
-            }
-            if (r.confident) {
-                window.applyParsed(r);
+            const ctx = { rowDefs: ROW_DEFS, playerNames: window.getPlayerNames() };
+            const key = window.getAiKey();
+            let shown = text, r;
+            if (key) {
+                setBtn('🤖 …');
+                try {
+                    const cmd = await aiNormalize(text, { playerNames: ctx.playerNames, key });
+                    shown = cmd || text;
+                    r = parseCommand(cmd || text, ctx);
+                } catch (e) {
+                    console.warn('[voce] AI a picat, folosesc regulile:', e);
+                    r = parseCommand(text, ctx);
+                } finally { setBtn('🎤 Voce'); }
             } else {
-                showModal('Confirmi comanda?',
-                    `Am înțeles: „${text}" → Jucător ${r.playerIndex}, ${r.label} = ${r.value}`,
-                    () => window.applyParsed(r));
+                r = parseCommand(text, ctx);
             }
+            console.log('[voce] ai zis:', JSON.stringify(text), '| interpretat:', JSON.stringify(shown), '→', JSON.stringify(r));
+            handleParsed(r, shown);
         };
         rec.onerror = function () { showToast('⚠️ Eroare microfon'); };
-        rec.onend = function () { if (btn) btn.textContent = '🎤 Voce'; };
+        rec.onend = function () { setBtn('🎤 Voce'); };
         rec.start();
     };
+
+    // populeaza campul cheii AI din Setari, daca exista
+    const _aiKeyInput = document.getElementById('aiKey');
+    if (_aiKeyInput) _aiKeyInput.value = window.getAiKey();
 }

@@ -126,3 +126,42 @@ test('regresie: comenzile curate raman valide', () => {
     assert.strictEqual(parseCommand('careu de patrari jos', ctx1).value, 41);
     assert.strictEqual(parseCommand('o pereche de cinciari jos', ctx1).value, 10);
 });
+
+// ===== Fallback AI =====
+const { buildAiBody, extractAiCommand, aiNormalize } = require('../voice.js');
+test('buildAiBody: contine vocabularul, jucatorii si transcriptul', () => {
+    const b = buildAiBody('releu de cinci ari in sus', ['Cristi', 'Lore']);
+    assert.strictEqual(b.model, 'openai/gpt-4o-mini');
+    assert.strictEqual(b.messages[1].content, 'releu de cinci ari in sus');
+    assert.match(b.messages[0].content, /careu/);
+    assert.match(b.messages[0].content, /Cristi, Lore/);
+    assert.deepStrictEqual(b.response_format, { type: 'json_object' });
+});
+test('extractAiCommand: scoate comanda din raspunsul OpenRouter', () => {
+    const json = { choices: [{ message: { content: '{"command":"careu de cinciari in sus"}' } }] };
+    assert.strictEqual(extractAiCommand(json), 'careu de cinciari in sus');
+});
+test('extractAiCommand: raspuns invalid -> string gol', () => {
+    assert.strictEqual(extractAiCommand({}), '');
+    assert.strictEqual(extractAiCommand({ choices: [{ message: { content: 'aiurea' } }] }), '');
+});
+test('AI->parser: formele canonice produse de AI se rezolva corect', () => {
+    // ce ar intoarce AI-ul pentru transcripturile stalcite reale:
+    assert.strictEqual(parseCommand('careu de cinciari in sus', ctx1).value, 45);
+    assert.strictEqual(parseCommand('trei doiari in jos', ctx1).value, 6);
+    assert.strictEqual(parseCommand('yams de treiari in sus', ctx1).value, 65);
+});
+test('aiNormalize: foloseste fetch injectat si intoarce comanda', async () => {
+    const fakeFetch = async (url, opts) => {
+        assert.match(url, /openrouter\.ai/);
+        const body = JSON.parse(opts.body);
+        assert.strictEqual(body.messages[1].content, 'releu de cinci ari in sus');
+        return { ok: true, json: async () => ({ choices: [{ message: { content: '{"command":"careu de cinciari in sus"}' } }] }) };
+    };
+    const cmd = await aiNormalize('releu de cinci ari in sus', { key: 'x', playerNames: ['Cristi'], fetchImpl: fakeFetch });
+    assert.strictEqual(cmd, 'careu de cinciari in sus');
+});
+test('aiNormalize: HTTP non-ok arunca', async () => {
+    const fakeFetch = async () => ({ ok: false, status: 401 });
+    await assert.rejects(() => aiNormalize('test', { key: 'x', playerNames: [], fetchImpl: fakeFetch }));
+});

@@ -1,4 +1,4 @@
-const CACHE = 'yams-v5';
+const CACHE = 'yams-v6';
 const ASSETS = [
   './', './index.html', './styles.css', './data.js', './app.js', './voice.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'
