@@ -129,13 +129,25 @@ test('regresie: comenzile curate raman valide', () => {
 
 // ===== Fallback AI =====
 const { buildAiBody, extractAiCommand, aiNormalize } = require('../voice.js');
-test('buildAiBody: contine vocabularul, jucatorii si transcriptul', () => {
+test('buildAiBody: contine vocabularul, jucatorii si transcriptul ultimul', () => {
     const b = buildAiBody('releu de cinci ari in sus', ['Cristi', 'Lore']);
     assert.strictEqual(b.model, 'openai/gpt-4o-mini');
-    assert.strictEqual(b.messages[1].content, 'releu de cinci ari in sus');
+    // transcriptul real e ULTIMUL mesaj (dupa exemplele few-shot)
+    const last = b.messages[b.messages.length - 1];
+    assert.strictEqual(last.role, 'user');
+    assert.strictEqual(last.content, 'releu de cinci ari in sus');
+    assert.strictEqual(b.messages[0].role, 'system');
     assert.match(b.messages[0].content, /careu/);
     assert.match(b.messages[0].content, /Cristi, Lore/);
+    // exista exemple few-shot (perechi user/assistant)
+    assert.ok(b.messages.some(m => m.role === 'assistant'));
     assert.deepStrictEqual(b.response_format, { type: 'json_object' });
+});
+test('AI->parser: exemplele few-shot produc valori corecte', () => {
+    assert.strictEqual(parseCommand('careu de cinciari in sus', ctx1).value, 45);
+    assert.strictEqual(parseCommand('patru patrari in jos', ctx1).value, 16);
+    assert.strictEqual(parseCommand('mic 8 in jos', ctx1).value, 8);
+    assert.strictEqual(parseCommand('taie careu servit', ctx1).value, 0);
 });
 test('extractAiCommand: scoate comanda din raspunsul OpenRouter', () => {
     const json = { choices: [{ message: { content: '{"command":"careu de cinciari in sus"}' } }] };
@@ -155,7 +167,7 @@ test('aiNormalize: foloseste fetch injectat si intoarce comanda', async () => {
     const fakeFetch = async (url, opts) => {
         assert.match(url, /openrouter\.ai/);
         const body = JSON.parse(opts.body);
-        assert.strictEqual(body.messages[1].content, 'releu de cinci ari in sus');
+        assert.strictEqual(body.messages[body.messages.length - 1].content, 'releu de cinci ari in sus');
         return { ok: true, json: async () => ({ choices: [{ message: { content: '{"command":"careu de cinciari in sus"}' } }] }) };
     };
     const cmd = await aiNormalize('releu de cinci ari in sus', { key: 'x', playerNames: ['Cristi'], fetchImpl: fakeFetch });

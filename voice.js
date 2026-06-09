@@ -186,6 +186,22 @@ function parseCommand(transcript, ctx) {
 const AI_MODEL = 'openai/gpt-4o-mini';
 const AI_ROWS = 'unari, doiari, treiari, patrari, cinciari, sasari, mic, mare, pare, impare, o pereche, 2 perechi, 3 bucati, full, chinta mica, chinta mare, careu, yams';
 
+// exemple few-shot (din transcripturi reale stalcite de STT) -> comanda canonica
+const AI_EXAMPLES = [
+    ['Neamt de cinci ani servit', 'yams servit cinciari'],
+    ['pireu de cinciar in sus', 'careu de cinciari in sus'],
+    ['releu de cinci ari in sus', 'careu de cinciari in sus'],
+    ['patru patrate in jos', 'patru patrari in jos'],
+    ['trei patrate in jos', 'trei patrari in jos'],
+    ['trei dolari in jos', 'trei doiari in jos'],
+    ['trei sesar in jos', 'trei sasari in jos'],
+    ['3 5 ari in jos', 'trei cinciari in jos'],
+    ['full de cinci cu patru jos', 'full de cinciari cu patrari jos'],
+    ['taie careul servit', 'taie careu servit'],
+    ['opt la mic in jos', 'mic 8 in jos'],
+    ['in sus', '']
+];
+
 function buildAiBody(transcript, playerNames) {
     const names = (playerNames && playerNames.length) ? playerNames.join(', ') : '(un singur jucator)';
     const system = [
@@ -194,24 +210,30 @@ function buildAiBody(transcript, playerNames) {
         'Randuri (categorii) valide: ' + AI_ROWS + '.',
         'Coloane valide: jos, liber, sus, servit.',
         'Jucatori: ' + names + '.',
+        'Cuvintele de Yams nu-s cuvinte reale, deci STT le stalceste. Variante des intalnite:',
+        '- categoriile de sus = "<numar>ari": unari (un ari / un are), doiari (dolari / doi ari / 2 ari),',
+        '  treiari (trei ari / 3 ari), patrari (patrate / patrat / patru ari), cinciari (cinci ari / cinci ani),',
+        '  sasari (sesar / sase ari / sasa). "ani" si "ari" sunt acelasi lucru.',
+        '- careu = patru zaruri identice (four of a kind); auzit ca: careu, caro, cariu, pireu, releu, reu.',
+        '- full = full house (trei identice + o pereche); auzit ca: full, fald, ful. NU confunda careu cu full.',
         'Reguli de formulare canonica:',
-        '- Sectiunea de sus: "<cantitate> <categorie> <coloana>", ex. "trei doiari in jos".',
+        '- Sectiunea de sus: "<cantitate> <categorie> <coloana>", ex. "trei doiari in jos". Primul numar e CANTITATEA (cate zaruri), separat de categorie.',
         '- yams / careu / 3 bucati: "<categorie> [servit] de <fata>", unde <fata> e unul din unari..sasari, ex. "careu de cinciari in sus", "yams servit cinciari".',
         '- full: "full de <X> cu <Y> <coloana>" (X=tripletul, Y=perechea) sau "full <numar> <coloana>".',
         '- chinte: "chinta mica <coloana>" / "chinta mare <coloana>".',
+        '- mic/mare/pare/impare/o pereche/2 perechi: "<categorie> <numar> <coloana>".',
         '- taiere (zero): "taie <categorie> <coloana>".',
         '- Daca recunosti un nume de jucator in transcript, pune-l la inceput.',
-        'Raspunde DOAR cu JSON: {"command": "<comanda canonica>"}. Daca nu poti deduce o comanda valida, {"command": ""}.'
+        'IMPORTANT: NU inventa. Daca lipseste coloana, sau categoria, sau (la sectiunea de sus) cantitatea, returneaza {"command":""}. Nu repeta niciodata textul brut neschimbat.',
+        'Raspunde DOAR cu JSON: {"command": "<comanda canonica>"}.'
     ].join('\n');
-    return {
-        model: AI_MODEL,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: transcript }
-        ]
-    };
+    const messages = [{ role: 'system', content: system }];
+    for (const [inp, out] of AI_EXAMPLES) {
+        messages.push({ role: 'user', content: inp });
+        messages.push({ role: 'assistant', content: JSON.stringify({ command: out }) });
+    }
+    messages.push({ role: 'user', content: transcript });
+    return { model: AI_MODEL, temperature: 0, response_format: { type: 'json_object' }, messages };
 }
 
 function extractAiCommand(json) {
