@@ -188,7 +188,17 @@ if (typeof window !== 'undefined') {
         rec.onresult = function (ev) {
             const text = ev.results[0][0].transcript;
             const r = parseCommand(text, { rowDefs: ROW_DEFS, playerNames: window.getPlayerNames() });
-            if (!r.ok) { showToast(`🤷 N-am înțeles („${text}")`); return; }
+            console.log('[voce] ai zis:', JSON.stringify(text), '→', JSON.stringify(r));
+            if (!r.ok) {
+                const why = {
+                    coloana_lipsa: 'n-am prins coloana (jos/liber/sus/servit)',
+                    categorie_lipsa: 'n-am prins categoria',
+                    valoare: 'n-am prins valoarea',
+                    valoare_invalida: 'valoarea nu se potrivește pe acel rând'
+                }[r.reason] || r.reason;
+                showToast(`🤷 „${text}" — ${why}`);
+                return;
+            }
             if (r.confident) {
                 window.applyParsed(r);
             } else {
