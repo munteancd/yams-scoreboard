@@ -87,3 +87,42 @@ test('2 jucatori fara nume -> confident false', () => {
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.confident, false);
 });
+
+// ===== Reparare jargon STT (din transcripturi reale) =====
+const { fixJargon } = require('../voice.js');
+test('fixJargon: forma cu cifre si spatiu', () => {
+    assert.strictEqual(fixJargon('trei 2 ari in jos'), 'trei doiari in jos');
+    assert.strictEqual(fixJargon('patru cinci ari servit'), 'patru cinciari servit');
+});
+test('fixJargon: varianta fonetica dolari -> doiari', () => {
+    assert.strictEqual(fixJargon('trei dolari in jos'), 'trei doiari in jos');
+});
+test('fixJargon: iams -> yams', () => {
+    assert.strictEqual(fixJargon('iams servit cinciari'), 'yams servit cinciari');
+});
+test('STT: trei dolari in jos -> doiari, value 6', () => {
+    const r = parseCommand('trei dolari în jos', ctx1);
+    assert.deepStrictEqual([r.rowIndex, r.colIndex, r.value], [1, 0, 6]);
+});
+test('STT: trei doi ari in jos -> doiari value 6', () => {
+    assert.strictEqual(parseCommand('trei doi ari în jos', ctx1).value, 6);
+});
+test('STT: 2 2 ari in jos -> doiari qty2 value4', () => {
+    assert.strictEqual(parseCommand('2 2 ari în jos', ctx1).value, 4);
+});
+test('STT: patru cinci ari servit -> cinciari qty4 value20', () => {
+    const r = parseCommand('patru cinci ari servit', ctx1);
+    assert.deepStrictEqual([r.rowIndex, r.value], [4, 20]);
+});
+test('STT: iams servit cinciari -> yams 125', () => {
+    assert.strictEqual(parseCommand('iams servit cinciari', ctx1).value, 125);
+});
+test('STT: 3 ari fara cantitate -> ok false (categorie ok, lipsa cantitate)', () => {
+    assert.strictEqual(parseCommand('neamt de 3 ari servit', ctx1).ok, false);
+});
+test('regresie: comenzile curate raman valide', () => {
+    assert.strictEqual(parseCommand('patru unari in jos', ctx1).value, 4);
+    assert.strictEqual(parseCommand('full de cinciari cu patrari jos', ctx1).value, 33);
+    assert.strictEqual(parseCommand('careu de patrari jos', ctx1).value, 41);
+    assert.strictEqual(parseCommand('o pereche de cinciari jos', ctx1).value, 10);
+});

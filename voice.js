@@ -44,6 +44,40 @@ const COL_WORDS = { jos:0, liber:1, sus:2, servit:3 };
 const FACE_WORDS = { unari:1, doiari:2, treiari:3, patrari:4, cinciari:5, sasari:6 };
 const CUT_WORDS = ['taie','tai','taiat','taiem'];
 
+// ===== Reparare jargon STT =====
+// Cuvintele de Yams (unari/doiari/.../yams) nu-s cuvinte reale, asa ca STT-ul le stalceste.
+// fixJargon readuce variantele la forma canonica INAINTE de parsare.
+function lev(a, b) {
+    const m = a.length, n = b.length;
+    const d = Array.from({ length: m + 1 }, (_, i) => { const r = new Array(n + 1).fill(0); r[0] = i; return r; });
+    for (let j = 0; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++)
+        for (let j = 1; j <= n; j++)
+            d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+}
+const ARI_NUM = { unu:1, un:1, una:1, o:1, doi:2, doua:2, trei:3, patru:4, cinci:5, sase:6,
+    '1':1, '2':2, '3':3, '4':4, '5':5, '6':6 };
+const ARI_JOINED = ['unari','doiari','treiari','patrari','cinciari','sasari'];
+const JARGON = { iams:'yams', iems:'yams', jams:'yams', games:'yams', iamcs:'yams', iamsu:'yams' };
+
+function fixJargon(t) {
+    // forma despartita "<numar> ari" -> cuvant unit (ex. "doi ari"->"doiari", "3 ari"->"treiari")
+    let s = t.replace(/\b(unu|un|una|o|doi|doua|trei|patru|cinci|sase|[1-6])\s+ari\b/g,
+        (_, num) => ARI_JOINED[ARI_NUM[num] - 1]);
+    // token-level: jargon fix + variante fonetice apropiate (ex. "dolari"->"doiari")
+    s = s.split(' ').map(w => {
+        if (JARGON[w]) return JARGON[w];
+        if (ARI_JOINED.indexOf(w) !== -1) return w;
+        if (/ari$/.test(w)) {
+            for (const j of ARI_JOINED)
+                if (Math.abs(w.length - j.length) <= 1 && lev(w, j) <= 1) return j;
+        }
+        return w;
+    }).join(' ');
+    return s;
+}
+
 function findCol(words) {
     for (const w of words) if (COL_WORDS[w] !== undefined) return COL_WORDS[w];
     return null;
@@ -122,7 +156,7 @@ function resolveValue({ rowIndex, servit, words, t, def, set }) {
 function parseCommand(transcript, ctx) {
     const rowDefs = ctx.rowDefs;
     const names = (ctx.playerNames || []).map(normalize);
-    const t = normalize(transcript);
+    const t = fixJargon(normalize(transcript));
     const words = t.split(' ').filter(Boolean);
 
     const colIndex = findCol(words);
@@ -149,7 +183,7 @@ function parseCommand(transcript, ctx) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { cellToExport, normalize, roNumber, parseCommand, FACE_WORDS, COL_WORDS };
+    module.exports = { cellToExport, normalize, roNumber, parseCommand, fixJargon, FACE_WORDS, COL_WORDS };
 }
 
 if (typeof window !== 'undefined') {
