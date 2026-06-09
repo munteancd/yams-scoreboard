@@ -177,3 +177,22 @@ test('aiNormalize: HTTP non-ok arunca', async () => {
     const fakeFetch = async () => ({ ok: false, status: 401 });
     await assert.rejects(() => aiNormalize('test', { key: 'x', playerNames: [], fetchImpl: fakeFetch }));
 });
+test('buildAiBody: mai multe variante -> lista in ultimul mesaj', () => {
+    const b = buildAiBody(['careu de tantari in sus', 'careu de cinci ari in sus'], ['Cristi']);
+    const last = b.messages[b.messages.length - 1].content;
+    assert.match(last, /careu de tantari in sus/);
+    assert.match(last, /careu de cinci ari in sus/);
+});
+
+const { parseFirstOk } = require('../voice.js');
+test('parseFirstOk: alege prima varianta valida', () => {
+    const r = parseFirstOk(['servit', 'trei doiari in jos'], ctx1);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.value, 6);
+    assert.strictEqual(r._src, 'trei doiari in jos');
+});
+test('parseFirstOk: niciuna valida -> prima incercare cu _src', () => {
+    const r = parseFirstOk(['servit', 'in sus'], ctx1);
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r._src, 'servit');
+});

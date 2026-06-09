@@ -197,6 +197,7 @@ const AI_EXAMPLES = [
     ['trei sesar in jos', 'trei sasari in jos'],
     ['3 5 ari in jos', 'trei cinciari in jos'],
     ['full de cinci cu patru jos', 'full de cinciari cu patrari jos'],
+    ['careu de tantari in sus', 'careu de cinciari in sus'],
     ['taie careul servit', 'taie careu servit'],
     ['opt la mic in jos', 'mic 8 in jos'],
     ['in sus', '']
@@ -204,15 +205,20 @@ const AI_EXAMPLES = [
 
 function buildAiBody(transcript, playerNames) {
     const names = (playerNames && playerNames.length) ? playerNames.join(', ') : '(un singur jucator)';
+    const alts = Array.isArray(transcript) ? transcript.filter(Boolean) : [transcript];
+    const userMsg = alts.length > 1
+        ? 'Variante auzite de STT pentru ACEEASI comanda (alege-o pe cea care se potriveste cu vocabularul):\n- ' + alts.join('\n- ')
+        : (alts[0] || '');
     const system = [
         'Esti un normalizator de comenzi vocale pentru un tabel de Yams (Yahtzee) in romana.',
-        'Primesti un transcript posibil gresit recunoscut de STT si il rescrii in formularea canonica EXACTA.',
+        'Primesti unul sau mai multe transcripturi (variante STT, posibil gresite) pentru ACEEASI comanda si o rescrii in formularea canonica EXACTA.',
+        'Cand primesti mai multe variante, alege varianta care se mapeaza cel mai bine pe vocabularul valid (categorie + coloana + valoare), nu neaparat prima.',
         'Randuri (categorii) valide: ' + AI_ROWS + '.',
         'Coloane valide: jos, liber, sus, servit.',
         'Jucatori: ' + names + '.',
         'Cuvintele de Yams nu-s cuvinte reale, deci STT le stalceste. Variante des intalnite:',
         '- categoriile de sus = "<numar>ari": unari (un ari / un are), doiari (dolari / doi ari / 2 ari),',
-        '  treiari (trei ari / 3 ari), patrari (patrate / patrat / patru ari), cinciari (cinci ari / cinci ani),',
+        '  treiari (trei ari / 3 ari), patrari (patrate / patrat / patru ari), cinciari (cinci ari / cinci ani / tantari),',
         '  sasari (sesar / sase ari / sasa). "ani" si "ari" sunt acelasi lucru.',
         '- careu = patru zaruri identice (four of a kind); auzit ca: careu, caro, cariu, pireu, releu, reu.',
         '- full = full house (trei identice + o pereche); auzit ca: full, fald, ful. NU confunda careu cu full.',
@@ -232,7 +238,7 @@ function buildAiBody(transcript, playerNames) {
         messages.push({ role: 'user', content: inp });
         messages.push({ role: 'assistant', content: JSON.stringify({ command: out }) });
     }
-    messages.push({ role: 'user', content: transcript });
+    messages.push({ role: 'user', content: userMsg });
     return { model: AI_MODEL, temperature: 0, response_format: { type: 'json_object' }, messages };
 }
 
@@ -262,8 +268,19 @@ async function aiNormalize(transcript, opts) {
     return extractAiCommand(json);
 }
 
+// incearca parseCommand pe fiecare varianta STT, intoarce prima care reuseste (sau prima incercare)
+function parseFirstOk(alts, ctx) {
+    let first = null;
+    for (const a of alts) {
+        const r = parseCommand(a, ctx);
+        if (!first) first = Object.assign({ _src: a }, r);
+        if (r.ok) return Object.assign({ _src: a }, r);
+    }
+    return first || { ok: false, reason: 'gol', _src: '' };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { cellToExport, normalize, roNumber, parseCommand, fixJargon,
+    module.exports = { cellToExport, normalize, roNumber, parseCommand, fixJargon, parseFirstOk,
         buildAiBody, extractAiCommand, aiNormalize, FACE_WORDS, COL_WORDS };
 }
 
@@ -323,29 +340,36 @@ if (typeof window !== 'undefined') {
         const rec = new SR();
         rec.lang = 'ro-RO';
         rec.interimResults = false;
-        rec.maxAlternatives = 1;
+        rec.maxAlternatives = 6;
         const btn = document.getElementById('voiceBtn');
         const setBtn = (txt) => { if (btn) btn.textContent = txt; };
         setBtn('🔴 …');
         rec.onresult = async function (ev) {
-            const text = ev.results[0][0].transcript;
+            // toate variantele STT pentru aceeasi comanda
+            const alts = [];
+            const res0 = ev.results[0];
+            for (let i = 0; i < res0.length; i++) {
+                const tr = (res0[i].transcript || '').trim();
+                if (tr && alts.indexOf(tr) === -1) alts.push(tr);
+            }
+            const text = alts[0] || '';
             const ctx = { rowDefs: ROW_DEFS, playerNames: window.getPlayerNames() };
             const key = window.getAiKey();
             let shown = text, r;
             if (key) {
                 setBtn('🤖 …');
                 try {
-                    const cmd = await aiNormalize(text, { playerNames: ctx.playerNames, key });
+                    const cmd = await aiNormalize(alts, { playerNames: ctx.playerNames, key });
                     shown = cmd || text;
                     r = parseCommand(cmd || text, ctx);
                 } catch (e) {
                     console.warn('[voce] AI a picat, folosesc regulile:', e);
-                    r = parseCommand(text, ctx);
+                    r = parseFirstOk(alts, ctx); shown = r._src || text;
                 } finally { setBtn('🎤 Voce'); }
             } else {
-                r = parseCommand(text, ctx);
+                r = parseFirstOk(alts, ctx); shown = r._src || text;
             }
-            console.log('[voce] ai zis:', JSON.stringify(text), '| interpretat:', JSON.stringify(shown), '→', JSON.stringify(r));
+            console.log('[voce] variante:', JSON.stringify(alts), '| interpretat:', JSON.stringify(shown), '→', JSON.stringify(r));
             handleParsed(r, shown);
         };
         rec.onerror = function () { showToast('⚠️ Eroare microfon'); };
