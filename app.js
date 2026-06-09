@@ -199,7 +199,7 @@ function updateAll(pid) {
     document.getElementById(`${pid}_to`).textContent = grandTotal;
 
     // Badge
-    const badge = document.getElementById(`${pid === 'p1' ? 'player1' : 'player2'}-total-badge`);
+    const badge = document.getElementById(`player${pid.slice(1)}-total-badge`);
     if (badge) badge.textContent = grandTotal;
 
     // Empty cells
